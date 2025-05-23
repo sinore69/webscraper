@@ -8,7 +8,7 @@ This CLI tool accepts a URL, maximum recursion depth, and concurrency level, the
 ## ✨ Features
 
 - ✅ **CLI interface**: Simple and configurable
-- 🕸️ **Recursive scraping** with user-defined depth
+- 🕸️ **Recursive scraping** of nested links with user-defined depth
 - ⚙️ **Concurrency control** via goroutines & semaphores (channels)
 - 📁 **Saves scraped data** to a standalone file
 - ⏱️ **Reports total time** taken for the scrape
