@@ -103,9 +103,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					break
 				}
 				defer outputFile.Close()
+				sem := make(chan struct{}, m.concurrency)
 				start := time.Now()
 				wg.Add(1)
-				go functions.Scrape(m.url, m.depth, outputFile, &wg, &mu, &visited)
+				go functions.Scrape(m.url, m.depth, outputFile, &wg, &mu, &visited,sem)
 
 				wg.Wait()
 				duration := time.Since(start)

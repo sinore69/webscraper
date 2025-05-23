@@ -6,13 +6,16 @@ import (
 	"sync"
 )
 
-func Scrape(link string, depth int, writer io.Writer, wg *sync.WaitGroup, mu *sync.Mutex, visited *map[string]bool) {
+func Scrape(link string, depth int, writer io.Writer, wg *sync.WaitGroup, mu *sync.Mutex, visited *map[string]bool, sem chan struct{}) {
 
 	defer wg.Done()
 
 	if depth <= 0 {
 		return
 	}
+
+	sem <- struct{}{}
+	defer func() { <-sem }()
 
 	mu.Lock()
 	if (*visited)[link] {
@@ -56,6 +59,6 @@ func Scrape(link string, depth int, writer io.Writer, wg *sync.WaitGroup, mu *sy
 
 	for _, l := range links {
 		wg.Add(1)
-		go Scrape(l, depth-1, writer, wg, mu, visited)
+		go Scrape(l, depth-1, writer, wg, mu, visited, sem)
 	}
 }
