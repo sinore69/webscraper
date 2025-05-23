@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"webscraper/functions"
 
@@ -35,7 +36,6 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles key events
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -103,18 +103,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					break
 				}
 				defer outputFile.Close()
+				start := time.Now()
 				wg.Add(1)
 				go functions.Scrape(m.url, m.depth, outputFile, &wg, &mu, &visited)
 
 				wg.Wait()
-				fmt.Println("Scraping completed. Output saved to", outputFileName)
+				duration := time.Since(start)
+				fmt.Printf("Scraping completed in %.2f seconds. Output saved to %s", duration.Seconds(), outputFileName)
 				os.Exit(0)
 			}
 		case tea.KeyRunes:
 			m.input += string(msg.Runes)
 		}
 	}
-
 	return m, nil
 }
 
@@ -127,15 +128,12 @@ func (m Model) View() string {
 		return fmt.Sprintf("Enter Max Concurrency level: %s\n%s", m.input, m.message)
 	case 2:
 		return fmt.Sprintf("Enter Max Depth level: %s\n%s", m.input, m.message)
-	// case 3:
-	// 	return fmt.Sprintln("scrapping website")
 	default:
 		return fmt.Sprintf("%+v", m)
 	}
 }
 
 func main() {
-
 	p := tea.NewProgram(Model{})
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error running program:", err)
