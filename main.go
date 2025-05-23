@@ -20,6 +20,8 @@ var (
 	wg      sync.WaitGroup
 )
 
+type scrapeDoneMsg string
+
 type Model struct {
 	url         string
 	concurrency int
@@ -27,14 +29,34 @@ type Model struct {
 	depth       int
 	input       string
 	message     string
+	isScraping  bool
 }
 
-// Init is called when the program starts
 func (m Model) Init() tea.Cmd {
 	return nil
 }
 
-// Update handles key events
+func ScrapeCmd(url string, depth int, concurrency int) tea.Cmd {
+	return func() tea.Msg {
+		outputFile, err := os.Create(outputFileName)
+		if err != nil {
+			return scrapeDoneMsg("Failed to create output file: " + err.Error())
+		}
+		defer outputFile.Close()
+
+		sem := make(chan struct{}, concurrency)
+		defer close(sem)
+
+		start := time.Now()
+		wg.Add(1)
+		go functions.Scrape(url, depth, outputFile, &wg, &mu, &visited, sem)
+		wg.Wait()
+
+		duration := time.Since(start)
+		return scrapeDoneMsg(fmt.Sprintf("Scraping completed in %.2f seconds. Output saved to %s", duration.Seconds(), outputFileName))
+	}
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -49,78 +71,52 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.input == "" {
 				break
 			}
-			if m.phase == 0 {
+			switch m.phase {
+			case 0:
 				if functions.IsValidURL(m.input) {
 					m.url = m.input
-					m.phase = m.phase + 1
+					m.phase++
 					m.input = ""
 					m.message = ""
-					break
 				} else {
 					m.message = "Invalid URL"
 				}
-			}
-			if m.phase == 1 {
-				if m.input == "" {
-					break
-				}
+			case 1:
 				num, err := strconv.Atoi(m.input)
-				if err != nil {
-					m.message = "Invalid number"
-					break
-				}
-				if num <= 0 {
-					m.message = "Concurrency must be greater than 0"
+				if err != nil || num <= 0 {
+					m.message = "Concurrency must be a positive number"
 					break
 				}
 				m.concurrency = num
 				m.input = ""
-				m.phase = m.phase + 1
+				m.phase++
 				m.message = ""
-			}
-			if m.phase == 2 {
-				if m.input == "" {
-					break
-				}
+			case 2:
 				num, err := strconv.Atoi(m.input)
-				if err != nil {
-					m.message = fmt.Sprintf("%v", err)
-					break
-				}
-				if num <= 0 {
-					m.message = "Depth must be greater than 0"
+				if err != nil || num <= 0 {
+					m.message = "Depth must be a positive number"
 					break
 				}
 				m.depth = num
 				m.input = ""
-				m.phase = m.phase + 1
+				m.phase++ 
+				m.isScraping = true
 				m.message = ""
-			}
-			if m.phase == 3 {
-				outputFile, err := os.Create(outputFileName)
-				if err != nil {
-					fmt.Println("Failed to create output file:", err)
-					break
-				}
-				defer outputFile.Close()
-				sem := make(chan struct{}, m.concurrency)
-				start := time.Now()
-				wg.Add(1)
-				go functions.Scrape(m.url, m.depth, outputFile, &wg, &mu, &visited,sem)
-
-				wg.Wait()
-				duration := time.Since(start)
-				fmt.Printf("Scraping completed in %.2f seconds. Output saved to %s", duration.Seconds(), outputFileName)
-				os.Exit(0)
+				return m, ScrapeCmd(m.url, m.depth, m.concurrency)
 			}
 		case tea.KeyRunes:
 			m.input += string(msg.Runes)
 		}
+
+	case scrapeDoneMsg:
+		m.isScraping = false
+		m.message = string(msg)
+		m.phase++
 	}
+
 	return m, nil
 }
 
-// View renders the UI
 func (m Model) View() string {
 	switch m.phase {
 	case 0:
@@ -129,8 +125,15 @@ func (m Model) View() string {
 		return fmt.Sprintf("Enter Max Concurrency level: %s\n%s", m.input, m.message)
 	case 2:
 		return fmt.Sprintf("Enter Max Depth level: %s\n%s", m.input, m.message)
+	case 3:
+		if m.isScraping {
+			return fmt.Sprintln("Scraping...")
+		}
+		return fmt.Sprintln(m.message)
+	case 4:
+		return fmt.Sprintln(m.message)
 	default:
-		return fmt.Sprintf("%+v", m)
+		return fmt.Sprintf("Something went wrong %+v", m)
 	}
 }
 
