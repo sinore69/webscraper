@@ -99,7 +99,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.depth = num
 				m.input = ""
-				m.phase++ 
+				m.phase++
 				m.isScraping = true
 				m.message = ""
 				return m, ScrapeCmd(m.url, m.depth, m.concurrency)
@@ -112,6 +112,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.isScraping = false
 		m.message = string(msg)
 		m.phase++
+		return m, tea.Quit
 	}
 
 	return m, nil
